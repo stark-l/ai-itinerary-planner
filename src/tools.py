@@ -1,5 +1,6 @@
 # ai_travel_planner/src/tools.py
 
+import streamlit as st # For caching and potential future use
 import requests
 import json
 import time
@@ -227,3 +228,10 @@ if __name__ == "__main__":
 
     else:
         print("\nSkipping Routing/POI tests due to failed geocoding.")
+
+@st.cache_data # Cache directly in the tool function
+def cached_geocode_location(place_name: str, attempt=1, max_attempts=3) -> dict | None:
+    """Cached wrapper for geocode_location."""
+    # print(f"DEBUG: Calling CACHED geocode_location tool for: {place_name}")
+    # Make sure GEOCODER_USER_AGENT is defined or passed if needed here
+    return geocode_location(place_name, attempt, max_attempts)

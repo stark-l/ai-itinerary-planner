@@ -1,5 +1,6 @@
 # src/itinerary_agent.py
 
+import streamlit as st
 import pandas as pd
 import numpy as np
 from sklearn.cluster import KMeans
@@ -262,18 +263,15 @@ def generate_detailed_itinerary_gemini(
 
 def brainstorm_places_for_quick_mode(location: str, duration: str, user_prompt: str) -> list[str] | None:
     """
-    Uses Gemini to suggest a list of relevant place names based on user input.
-
+    Uses Gemini to suggest a list of relevant place names based on user input for Quick Mode.
     Args:
         location: The destination city/area.
         duration: The trip duration (e.g., "3 days").
         user_prompt: The user's free-text description of preferences.
-
     Returns:
         A list of suggested place names, or None if generation fails.
     """
     print(f"Itinerary Agent (Quick Brainstorm): For {location}, {duration}, prompt: '{user_prompt[:50]}...'")
-
     # Estimate number of places needed (e.g., 5-7 per day, adjust as needed)
     days = 1
     try:
@@ -306,10 +304,14 @@ def brainstorm_places_for_quick_mode(location: str, duration: str, user_prompt: 
     5. Seine River Cruise
     6. Musée d'Orsay
     """
-
     try:
-        # Assumes genai is configured elsewhere (e.g., in the main app or page)
-        model = genai.GenerativeModel('gemini-1.5-flash-latest')
+        # Assumes genai is configured in the calling script (Quick Mode page)
+        # If not, configure it here using GOOGLE_API_KEY from os.getenv
+        # GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+        # if not GOOGLE_API_KEY: raise ValueError("GOOGLE_API_KEY not found")
+        # genai.configure(api_key=GOOGLE_API_KEY)
+
+        model = genai.GenerativeModel('gemini-1.5-flash-latest') # Consider making model name configurable
         print("Itinerary Agent (Quick Brainstorm): Sending request to Gemini...")
         response = model.generate_content(prompt)
 
@@ -326,6 +328,7 @@ def brainstorm_places_for_quick_mode(location: str, duration: str, user_prompt: 
                     place = match.group(1).strip()
                     if place: # Avoid empty strings
                         place_names.append(place)
+
             if place_names:
                 print(f"Itinerary Agent (Quick Brainstorm): Extracted {len(place_names)} place names.")
                 return place_names
@@ -345,3 +348,4 @@ def brainstorm_places_for_quick_mode(location: str, duration: str, user_prompt: 
     except Exception as e:
         print(f"Itinerary Agent (Quick Brainstorm): 🔴 Error contacting Gemini: {e}")
         return None
+# --- Keep other functions (create_basic_itinerary, generate_detailed_itinerary_gemini) ---
