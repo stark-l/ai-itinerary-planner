@@ -9,7 +9,7 @@ import os
 from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut, GeocoderServiceError
 import json
-from tools import geocode_location
+from tools import geocode_location, cached_geocode_location
 
 # REMOVE basic itinerary import, KEEP detailed one
 # from itinerary_agent import create_basic_itinerary, generate_detailed_itinerary_gemini
@@ -560,14 +560,13 @@ num_curated_geocoded = len([
     if st.session_state.geocoded_locations.get(item['display_text']) is not None
 ])
 # ... (default_days_detailed calculation) ...
-default_days_detailed = 1
 if num_curated_geocoded > 0:
-    try:
-        duration_str = str(st.session_state.get('duration', '')).lower().replace("days", "").strip()
-        default_days_detailed = int(duration_str) if duration_str.isdigit() else num_curated_geocoded
-        default_days_detailed = max(1, min(default_days_detailed, num_curated_geocoded))
-    except ValueError: default_days_detailed = max(1, min(num_curated_geocoded, 7))
-else: default_days_detailed = 1
+    # Default to 3 days, but don't exceed the number of available geocoded activities.
+    # This ensures the default 'value' is always <= 'max_value' in the number_input widget.
+    default_days_detailed = min(3, max(1, num_curated_geocoded))
+else:
+    # If no activities, default to 1 (the input will be disabled anyway)
+    default_days_detailed = 1
 
 num_days_detailed = st.number_input(
     "Number of Days for Detailed Itinerary:", min_value=1,
