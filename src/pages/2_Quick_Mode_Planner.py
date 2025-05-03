@@ -65,7 +65,7 @@ if not MAPBOX_ACCESS_TOKEN:
 
 # --- 4. UI Layout ---
 st.set_page_config(layout="wide", page_title="Quick Planner") # Page specific config
-st.title("⚡ Quick Mode: Instant Itinerary")
+st.title("AI Assistant: Instant Itinerary")
 st.markdown("Provide your destination, duration, and a brief description of your interests. The AI will suggest locations and generate a full itinerary plan.")
 
 # Inputs
