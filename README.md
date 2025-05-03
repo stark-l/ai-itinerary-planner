@@ -30,7 +30,6 @@ This is a Streamlit web application designed to help users plan travel itinerari
 
 ## 📁 Project Structure.
 ```text
-.
 ├── .env                # Stores API keys (!! IMPORTANT: Add to .gitignore !!)
 ├── .gitignore          # Specifies intentionally untracked files
 ├── requirements.txt    # Python dependencies
@@ -43,6 +42,7 @@ This is a Streamlit web application designed to help users plan travel itinerari
     ├── Main_page.py        # Main entry point / landing page for Streamlit
     ├── itinerary_agent.py  # Functions calling Gemini for planning
     └── tools.py            # Utility functions (geocoding, etc.)
+```
 
 ## 🚀 Setup and Installation
 
