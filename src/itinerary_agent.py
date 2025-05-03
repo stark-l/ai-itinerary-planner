@@ -348,4 +348,160 @@ def brainstorm_places_for_quick_mode(location: str, duration: str, user_prompt: 
     except Exception as e:
         print(f"Itinerary Agent (Quick Brainstorm): 🔴 Error contacting Gemini: {e}")
         return None
+    
+
+# --- NEW: Function to Modify an Existing Itinerary via Chat ---
+def modify_detailed_itinerary_gemini(
+    current_itinerary_json: str, # Pass the current itinerary as a JSON string
+    user_request: str,
+    destination: str, # Keep original context
+    prefs: list[str], # Keep original context
+    budget: str      # Keep original context
+) -> tuple[str | None, str | None]:
+    """
+    Uses Gemini to modify an existing detailed itinerary based on user chat request.
+
+    Args:
+        current_itinerary_json: The current itinerary data as a JSON string.
+        user_request: The user's latest chat message requesting a change.
+        destination: Original trip destination (for context).
+        prefs: Original user preferences (for context).
+        budget: Original budget style (for context).
+
+    Returns:
+        A tuple: (new_itinerary_json_str, error_message).
+        - If successful, new_itinerary_json_str contains the updated JSON, error_message is None.
+        - If Gemini explains why it can't modify or fails, new_itinerary_json_str is None,
+          and error_message contains the explanation or error details.
+    """
+    print(f"Itinerary Agent (Modify): Requesting change: '{user_request[:50]}...'")
+
+    prompt = f"""
+You are an expert travel planner refining an existing itinerary based on user feedback.
+
+**Original Trip Context:**
+*   **Destination:** {destination or 'Not specified'}
+*   **User Preferences:** {', '.join(prefs) or 'None specified'}
+*   **Budget Style:** {budget or 'Not specified'}
+
+**Current Itinerary (JSON Format):**
+```json
+{current_itinerary_json}
+
+**User's Modification Request:**
+"{user_request}"
+
+**Your Task:**
+1. Analyze the user's request in the context of the current itinerary.
+2. If the request is feasible and clear, modify the entire itinerary JSON provided above to incorporate the change. Ensure the output reflects the full itinerary after the change.
+3. Maintain the exact same JSON structure and format for the output, including all required fields for each stop (day, title, stops list with time, type, name, coordinates, description, zoom, pitch). Ensure coordinates remain valid [longitude, latitude] lists. Validate coordinates before outputting.
+4. If you add new places not in the original list, try to make reasonable assumptions for coordinates based on the destination, or state clearly in an INFO message if you cannot find reliable coordinates. Prioritize modifying existing stops if possible.
+5. Output ONLY the complete, updated JSON data structure. Do not include any introductory text, explanations unless the request is impossible, apologies, or concluding remarks outside the JSON structure itself. The entire output must be valid JSON representing the full modified itinerary list.
+6. If the request is unclear, impossible (e.g., "add a day trip to the moon"), requires coordinates you cannot determine, or fundamentally breaks the itinerary logic, DO NOT output JSON. Instead, provide a short, polite explanation of why you cannot fulfill the request. Start your explanation with "INFO:".
+
+**Example Scenario 1:**
+User Request: "Can we switch the museum visit on Day 1 to the afternoon and have lunch earlier?"
+Your Output: (Should be the full JSON itinerary list with Day 1 stops reordered and times adjusted)
+
+**Example Scenario 2:**
+User Request: "Remove Day 2 entirely."
+Your Output: (Should be the full JSON itinerary list, containing only Day 1, Day 3, etc., with day numbers potentially re-sequenced if needed, or keep original day numbers if simpler).
+
+**Example Scenario 3:**
+User Request: "Make it more exciting."
+Your Output: "INFO: That's a bit too vague! Could you please specify what kind of exciting activities you'd like to add or change?"
+
+Produce the output now based on the user's request.
+"""
+    try:
+        # Ensure Google API Key is configured (it should be by the calling page)
+        GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+        if not GOOGLE_API_KEY:
+            print("🔴 Error (Modify Agent): GOOGLE_API_KEY not found.")
+            return None, "Error: Google API Key not configured."
+        # It's usually configured already, but double-checking doesn't hurt if running standalone
+        # genai.configure(api_key=GOOGLE_API_KEY) # Usually already done
+
+        model = genai.GenerativeModel(
+            'gemini-1.5-flash-latest', # Or your preferred model
+            generation_config={"response_mime_type": "application/json"} # CRITICAL: Request JSON output
+            # Note: If Gemini gives an explanation (starts INFO:), it won't be JSON.
+        )
+        print("Itinerary Agent (Modify): Sending request to Gemini...")
+        # Safety settings might be needed depending on the user requests
+        # safety_settings={'HARASSMENT':'BLOCK_NONE', ...}
+        response = model.generate_content(prompt) # Add safety_settings=safety_settings if needed
+
+        # --- Process Response ---
+        if response.parts:
+            raw_text = response.text.strip()
+            # print("DEBUG: Raw Gemini Modify Response:\n", raw_text) # Optional debug
+
+            # Check if Gemini provided an explanation instead of JSON
+            if raw_text.startswith("INFO:"):
+                print("Itinerary Agent (Modify): Gemini provided info/explanation.")
+                # Return the explanation as the error message
+                return None, raw_text
+
+            # Attempt to parse the response as JSON
+            try:
+                # Clean potential markdown fences just in case
+                cleaned_json_text = re.sub(r'^```json\s*|\s*```$', '', raw_text, flags=re.DOTALL)
+
+                # Validate JSON structure (basic check)
+                parsed_itinerary = json.loads(cleaned_json_text)
+
+                # More thorough validation
+                if isinstance(parsed_itinerary, list) and \
+                all(isinstance(day, dict) and 'day' in day and 'title' in day and 'stops' in day and isinstance(day['stops'], list) for day in parsed_itinerary):
+                    # Even more detail: check stops format
+                    valid_stops = True
+                    for day in parsed_itinerary:
+                        for stop in day['stops']:
+                            if not (isinstance(stop, dict) and
+                                    'time' in stop and
+                                    'type' in stop and
+                                    'name' in stop and
+                                    'coordinates' in stop and isinstance(stop['coordinates'], list) and len(stop['coordinates']) == 2 and
+                                    'description' in stop and
+                                    'zoom' in stop and
+                                    'pitch' in stop):
+                                valid_stops = False
+                                print(f"Itinerary Agent (Modify): Invalid stop structure found: {stop}")
+                                break
+                        if not valid_stops: break
+
+                    if valid_stops:
+                        print("Itinerary Agent (Modify): Successfully received and parsed valid modified itinerary JSON.")
+                        return cleaned_json_text, None # Return the valid JSON string
+                    else:
+                        print("Itinerary Agent (Modify): Error - Gemini output JSON structure is invalid (stop detail issue).")
+                        return None, f"Error: AI response was JSON but had an invalid stop structure.\n```json\n{cleaned_json_text}\n```"
+                else:
+                    print("Itinerary Agent (Modify): Error - Gemini output JSON structure is invalid (day/list issue).")
+                    return None, f"Error: AI response was JSON but had an invalid overall structure.\n```json\n{cleaned_json_text}\n```"
+
+            except json.JSONDecodeError as json_err:
+                print(f"Itinerary Agent (Modify): Error - Failed to decode JSON response: {json_err}")
+                # Return the raw text as an error/explanation if JSON parsing fails
+                # It might contain useful info from the AI even if not perfect JSON
+                error_detail = f"Error: AI response was not valid JSON.\nDetails: {json_err}\nResponse:\n{raw_text}"
+                return None, error_detail
+
+        elif response.prompt_feedback and response.prompt_feedback.block_reason:
+            block_reason = response.prompt_feedback.block_reason.name # Use .name for the string representation
+            print(f"Itinerary Agent (Modify): ⚠️ Request blocked by safety filter: {block_reason}")
+            return None, f"Error: Your request was blocked by the safety filter ({block_reason}). Please rephrase your request."
+        else:
+            # Handle cases like stop reasons other than block, or unexpected empty response
+            print(f"Itinerary Agent (Modify): Error - Gemini response issue. Finish reason: {response.candidates[0].finish_reason if response.candidates else 'Unknown'}")
+            return None, "Error: AI returned an unexpected or empty response."
+
+    except Exception as e:
+        print(f"Itinerary Agent (Modify): 🔴 An unexpected error occurred: {e}")
+        # You might want to log the full traceback here for debugging
+        # import traceback
+        # traceback.print_exc()
+        return None, f"Error: An unexpected error occurred while contacting the AI: {e}"
+    
 # --- Keep other functions (create_basic_itinerary, generate_detailed_itinerary_gemini) ---
