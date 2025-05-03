@@ -377,7 +377,7 @@ def modify_detailed_itinerary_gemini(
     print(f"Itinerary Agent (Modify): Requesting change: '{user_request[:50]}...'")
 
     prompt = f"""
-You are an expert travel planner refining an existing itinerary based on user feedback.
+You are an expert travel planner refining an existing itinerary based on user feedback. You are given an existing travel itinerary in JSON format and a user request to modify it.
 
 **Original Trip Context:**
 *   **Destination:** {destination or 'Not specified'}
@@ -392,12 +392,27 @@ You are an expert travel planner refining an existing itinerary based on user fe
 "{user_request}"
 
 **Your Task:**
+Your task is to modify the existing itinerary based ONLY on the user's request and return the complete, updated itinerary as a single, valid JSON object.
 1. Analyze the user's request in the context of the current itinerary.
-2. If the request is feasible and clear, modify the entire itinerary JSON provided above to incorporate the change. Ensure the output reflects the full itinerary after the change.
-3. Maintain the exact same JSON structure and format for the output, including all required fields for each stop (day, title, stops list with time, type, name, coordinates, description, zoom, pitch). Ensure coordinates remain valid [longitude, latitude] lists. Validate coordinates before outputting.
-4. If you add new places not in the original list, try to make reasonable assumptions for coordinates based on the destination, or state clearly in an INFO message if you cannot find reliable coordinates. Prioritize modifying existing stops if possible.
-5. Output ONLY the complete, updated JSON data structure. Do not include any introductory text, explanations unless the request is impossible, apologies, or concluding remarks outside the JSON structure itself. The entire output must be valid JSON representing the full modified itinerary list.
-6. If the request is unclear, impossible (e.g., "add a day trip to the moon"), requires coordinates you cannot determine, or fundamentally breaks the itinerary logic, DO NOT output JSON. Instead, provide a short, polite explanation of why you cannot fulfill the request. Start your explanation with "INFO:".
+2. If the request is feasible and clear, modify the entire itinerary JSON provided above to incorporate the change.
+3. Maintain the exact same JSON structure and format for the output, including all required fields for each stop (day, title, stops list with time, type, name, coordinates, description, zoom, pitch). Ensure coordinates remain valid [longitude, latitude] lists.
+4. Adjust Timings: After modifying the stops within a day (reordering, adding, removing), review and adjust the time fields for all stops in that day to ensure a logical, sequential flow throughout the day. Estimate reasonable durations and implicit travel times. Ensure times are in "HH:MM" format.
+5. Update Day Titles: After modifying the stops for a day, review the day's title. If the main theme or focus of the day has significantly changed due to the modifications (e.g., swapping a beach day for a museum day), update the title field (e.g., "Day X: [New Theme]") to accurately reflect, the second"day": 2`, etc.
+6. Maintain Structure & Fields: Preserve the exact JSON structure (list of day objects, each with day, title, stops list). Ensure all required fields (time, type, name, coordinates, description, zoom, pitch) are present and valid for every stop in the updated plan. Ensure coordinates remain valid [longitude, latitude] lists.
+7. Handle New Places: If adding new places, try to make reasonable assumptions for coordinates or use placeholders like [0, 0] if coordinates cannot be determined, but clearly state this limitation in an INFO message if necessary (and don't output JSON in that case, as instructed below). Prioritize modifying existing stops.
+8. Output JSON Only (on success): If the request is fulfilled, output ONLY the complete, updated, and re-sequenced JSON data structure representing the full modified itinerary list. Do not include any introductory text, explanations, apologies, or concluding remarks outside the JSON structure itself.
+9. Output Explanation Only (on failure/impossibility): If the request is unclear, impossible (e.g., "add a day trip to the moon"), requires coordinates you cannot determine reliably, or fundamentally breaks the itinerary logic, DO NOT output JSON. Instead, provide a short, polite explanation of why you cannot fulfill the request. Start your explanation with "INFO:".
+
+**IMPORTANT OUTPUT REQUIREMENTS**:
+1. Return ONLY the JSON: Your entire response MUST be the updated itinerary in JSON format. Do not include any introductory text, explanations, apologies, or markdown formatting like json wrappers outside the JSON object itself.
+2. Maintain Structure: Adhere strictly to the original JSON structure (list of day objects, each with 'day', 'title', 'stops'; each stop with 'name', 'time', 'type', 'description', 'coordinates', etc.).
+3. VALID COORDINATES ARE ESSENTIAL:
+    - Every stop in the 'stops' list MUST include a 'coordinates' field.
+    - The 'coordinates' field MUST be a list containing exactly two numerical values: [longitude, latitude].
+    - Correct Example: "coordinates": [-9.1393, 38.7223]
+    - Incorrect Examples: "coordinates": null, "coordinates": "missing", "coordinates": {{ "lon": -9.1, "lat": 38.7 }}, "coordinates": [-9.1393]
+4. Handle New Locations: If the user request requires adding a new location not present in the original itinerary, you MUST determine its correct geographical coordinates and include them in the valid [longitude, latitude] format. If you cannot determine coordinates, explain this difficulty INSTEAD of returning invalid JSON (though preferably, try your best to find them).
+5. Complete Itinerary: Ensure the returned JSON represents the entire modified trip plan, not just the changed parts
 
 **Example Scenario 1:**
 User Request: "Can we switch the museum visit on Day 1 to the afternoon and have lunch earlier?"
@@ -407,9 +422,14 @@ Your Output: (Should be the full JSON itinerary list with Day 1 stops reordered 
 User Request: "Remove Day 2 entirely."
 Your Output: (Should be the full JSON itinerary list, containing only Day 1, Day 3, etc., with day numbers potentially re-sequenced if needed, or keep original day numbers if simpler).
 
-**Example Scenario 3:**
-User Request: "Make it more exciting."
-Your Output: "INFO: That's a bit too vague! Could you please specify what kind of exciting activities you'd like to add or change?"
+**Example Scenario 3 (Time/Title Change):**
+Current Day 1: {{"day": 1, "title": "Day 1: Coastal Views", "stops": [{{"time": "10:00", "name": "Beach Visit", ...}}, {{"time": "13:00", "name": "Lunch", ...}}, {{"time": "15:00", "name": "Cliff Walk", ...}}]}}
+User Request: "Replace the beach visit on day 1 with the Art Museum visit."
+Your Output: (Should be full JSON, with Day 1 like: {{"day": 1, "title": "Day 1: Art & Coast", "stops": [{{"time": "10:30", "name": "Art Museum", ...}}, {{"time": "13:30", "name": "Lunch", ...}}, {{"time": "15:30", "name": "Cliff Walk", ...}}]}} - Note adjusted times and potentially title).
+
+**Example Scenario 4 (Day Swap):**
+User Request: "Swap Day 1 and Day 2"
+Your Output: (Should be full JSON, where the object with `"day": 1` now contains the stops originally from Day 2, and the object with `"day": 2` contains the stops originally from Day 1. Titles should also be reviewed/updated for the new content of Day 1 and Day 2).
 
 Produce the output now based on the user's request.
 """

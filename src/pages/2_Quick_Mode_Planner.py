@@ -221,7 +221,7 @@ elif st.session_state.quick_mode_error and not st.session_state.quick_mode_itine
 
 # --- 7. Results Display (Map & Chat Interface) ---
 # This section now runs only when NOT generating and itinerary data IS present
-if not st.session_state.quick_mode_generating and st.session_state.get('quick_mode_itinerary_data'):
+elif not st.session_state.quick_mode_generating and st.session_state.get('quick_mode_itinerary_data'):
     st.markdown("---")
     st.subheader("🗓️ Generated Itinerary & Map")
 
@@ -730,81 +730,117 @@ if not st.session_state.quick_mode_generating and st.session_state.get('quick_mo
         st.json(st.session_state.get('quick_mode_itinerary_data', {"error": "Could not retrieve itinerary data for display."}))
 
     # --- >>> Chat Interface for Modifications (Displayed regardless of map success if itinerary_data exists) <<< ---
-    # Ensure itinerary_data exists before showing chat
-    if 'itinerary_data' in locals() and itinerary_data: # Check if variable was assigned and is not None/empty
-        st.markdown("---") # Separator
-        st.subheader("💬 Modify Your Itinerary")
-        st.caption("Chat with the AI to make changes to the plan above. (e.g., 'Swap Day 1 and Day 2', 'Add a coffee break after the museum on Day 1', 'Remove the park visit on Day 3')")
+# Ensure itinerary_data exists before showing chat
+if 'itinerary_data' in locals() and itinerary_data: # Check if variable was assigned and is not None/empty
+    st.markdown("---") # Separator
+    st.subheader("💬 Modify Your Itinerary")
+    st.caption("Chat with the AI to make changes to the plan above. (e.g., 'Swap Day 1 and Day 2', 'Add a coffee break after the museum on Day 1', 'Remove the park visit on Day 3')")
 
-        # Display existing chat messages
-        if 'quick_mode_chat_messages' in st.session_state:
-            for message in st.session_state.quick_mode_chat_messages:
-                with st.chat_message(message["role"]):
-                    st.markdown(message["content"])
-        else:
-            st.session_state.quick_mode_chat_messages = [] # Initialize if somehow missing
+    # Display existing chat messages
+    if 'quick_mode_chat_messages' in st.session_state:
+        for message in st.session_state.quick_mode_chat_messages:
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"])
+    else:
+        st.session_state.quick_mode_chat_messages = [] # Initialize if somehow missing
 
-        # Chat input
-        if user_prompt := st.chat_input("Enter your change request here...", key="quick_mode_chat_input"):
-            # Add user message to state and display
-            st.session_state.quick_mode_chat_messages.append({"role": "user", "content": user_prompt})
-            with st.chat_message("user"):
-                st.markdown(user_prompt)
+    # Chat input
+    if user_prompt := st.chat_input("Enter your change request here...", key="quick_mode_chat_input"):
+        # Add user message to state and display
+        st.session_state.quick_mode_chat_messages.append({"role": "user", "content": user_prompt})
+        with st.chat_message("user"):
+            st.markdown(user_prompt)
 
-            # Prepare data for the modification function
-            current_itinerary = st.session_state.quick_mode_itinerary_data # Already checked this exists
-            if not current_itinerary:
-                 # This check is slightly redundant given the outer check, but safe
-                 st.error("Internal Error: Cannot modify, itinerary data lost.")
-                 st.stop()
+        # Prepare data for the modification function
+        current_itinerary = st.session_state.quick_mode_itinerary_data # Already checked this exists
+        if not current_itinerary:
+             # This check is slightly redundant given the outer check, but safe
+             st.error("Internal Error: Cannot modify, itinerary data lost.")
+             st.stop()
 
-            try:
-                current_itinerary_json_str = json.dumps(current_itinerary, indent=2) # Use indent for readability
-            except TypeError as e:
-                st.error(f"Internal Error: Could not serialize current itinerary to JSON: {e}")
-                st.stop()
+        try:
+            current_itinerary_json_str = json.dumps(current_itinerary, indent=2) # Use indent for readability
+        except TypeError as e:
+            st.error(f"Internal Error: Could not serialize current itinerary to JSON: {e}")
+            st.stop()
 
-            # Get original context used for generation (needed by the modification agent)
-            original_location = st.session_state.get('quick_mode_location', '')
-            original_prefs_str = st.session_state.get('quick_mode_prefs', '')
-            original_prefs = [original_prefs_str] if original_prefs_str else []
-            original_budget = "Any" # Assuming Quick mode doesn't have explicit budget
+        # Get original context used for generation (needed by the modification agent)
+        original_location = st.session_state.get('quick_mode_location', '')
+        original_prefs_str = st.session_state.get('quick_mode_prefs', '')
+        original_prefs = [original_prefs_str] if original_prefs_str else []
+        original_budget = "Any" # Assuming Quick mode doesn't have explicit budget
 
-            # Call the modification function
-            with st.chat_message("assistant"):
-                message_placeholder = st.empty()
-                message_placeholder.markdown("🔄 Thinking about your request...")
-                # Using st.spinner for visual feedback during the API call
-                with st.spinner("Asking AI to modify the itinerary..."):
-                    try:
-                        new_itinerary_json_str, error_msg = modify_detailed_itinerary_gemini(
-                            current_itinerary_json=current_itinerary_json_str,
-                            user_request=user_prompt,
-                            destination=original_location,
-                            prefs=original_prefs,
-                            budget=original_budget
-                        )
-                    except Exception as agent_error:
-                         st.error(f"Error calling modification agent: {agent_error}")
-                         new_itinerary_json_str = None
-                         error_msg = f"An unexpected error occurred while trying to modify the plan: {agent_error}"
+        # Call the modification function
+        with st.chat_message("assistant"):
+            message_placeholder = st.empty()
+            message_placeholder.markdown("🔄 Thinking about your request...")
+            # Using st.spinner for visual feedback during the API call
+            with st.spinner("Asking AI to modify the itinerary..."):
+                try:
+                    new_itinerary_json_str, error_msg = modify_detailed_itinerary_gemini(
+                        current_itinerary_json=current_itinerary_json_str,
+                        user_request=user_prompt,
+                        destination=original_location,
+                        prefs=original_prefs,
+                        budget=original_budget
+                    )
+                except Exception as agent_error:
+                     st.error(f"Error calling modification agent: {agent_error}")
+                     new_itinerary_json_str = None
+                     error_msg = f"An unexpected error occurred while trying to modify the plan: {agent_error}"
 
 
-                if error_msg:
-                    # AI explained why it couldn't modify or an error occurred
-                    response_content = f"⚠️ {error_msg}" # Prepend warning emoji
-                    message_placeholder.warning(response_content) # Use warning display for errors/info
-                    # Add assistant's explanation/error to chat history
-                    st.session_state.quick_mode_chat_messages.append({"role": "assistant", "content": response_content})
-                elif new_itinerary_json_str:
-                    # Attempt to parse the new JSON
-                    try:
-                        new_itinerary_data = json.loads(new_itinerary_json_str)
-                        # More robust validation of the structure
-                        if (isinstance(new_itinerary_data, list) and
-                            all(isinstance(d, dict) and 'day' in d and 'stops' in d and isinstance(d['stops'], list) for d in new_itinerary_data) and
-                            all(isinstance(stop, dict) and 'name' in stop and 'coordinates' in stop for d in new_itinerary_data for stop in d['stops'])): # Check stops basic fields
-                            # Update successful!
+            if error_msg:
+                # --- ADDED: Print AI Explanation/Error ---
+                print("\n--- DEBUG: AI Modification Error/Explanation ---")
+                print(error_msg)
+                print("--- END DEBUG ---\n")
+                # --- END ADDED ---
+
+                # AI explained why it couldn't modify or an error occurred
+                response_content = f"⚠️ {error_msg}" # Prepend warning emoji
+                message_placeholder.warning(response_content) # Use warning display for errors/info
+                # Add assistant's explanation/error to chat history
+                st.session_state.quick_mode_chat_messages.append({"role": "assistant", "content": response_content})
+
+            elif new_itinerary_json_str:
+                # --- ADDED: Print the RAW JSON string ---
+                print("\n--- DEBUG: Raw JSON Received from Modify Agent ---")
+                print(new_itinerary_json_str)
+                print("--- END DEBUG ---\n")
+                # --- END ADDED ---
+
+                # Attempt to parse the new JSON
+                try:
+                    new_itinerary_data = json.loads(new_itinerary_json_str)
+
+                    # --- ADDED: Print the PARSED data ---
+                    print("\n--- DEBUG: Parsed Itinerary Data ---")
+                    import pprint # Make sure to import pprint if not already done at top of file
+                    pprint.pprint(new_itinerary_data) # Pretty print the Python dict
+                    print("--- END DEBUG ---\n")
+                    # --- END ADDED ---
+
+                    # More robust validation of the structure
+                    if (isinstance(new_itinerary_data, list) and
+                        all(isinstance(d, dict) and 'day' in d and 'stops' in d and isinstance(d['stops'], list) for d in new_itinerary_data) and
+                        all(isinstance(stop, dict) and 'name' in stop and 'coordinates' in stop for d in new_itinerary_data for stop in d['stops'])): # Check stops basic fields
+                        # Even more robust check for coordinates format specifically (as per JS requirements)
+                        valid_coords = True
+                        for day in new_itinerary_data:
+                            for stop in day['stops']:
+                                coords = stop.get('coordinates')
+                                if not (isinstance(coords, list) and len(coords) == 2 and
+                                        isinstance(coords[0], (int, float)) and
+                                        isinstance(coords[1], (int, float))):
+                                    valid_coords = False
+                                    print(f"DEBUG: Invalid coordinates found in parsed data for stop '{stop.get('name')}': {coords}") # Debug print
+                                    break
+                            if not valid_coords:
+                                break
+
+                        if valid_coords:
+                             # Update successful!
                             response_content = "✅ OK, I've updated the itinerary based on your request. The map and plan above should refresh momentarily."
                             message_placeholder.success(response_content) # Use success display
                             # Add assistant's success message to chat history
@@ -817,39 +853,41 @@ if not st.session_state.quick_mode_generating and st.session_state.get('quick_mo
                             time.sleep(1) # Brief pause allows user to see message before rerun
                             st.rerun()
                         else:
-                            # JSON received but invalid structure
-                            response_content = "⚠️ Sorry, the AI provided an updated plan but its structure was invalid (missing required fields like 'day', 'stops', 'name', or 'coordinates'). Please try rephrasing your request or regenerating the plan."
+                             # JSON received and parsed, but coordinates are invalid
+                            response_content = "⚠️ Sorry, the AI provided an updated plan, but the structure was invalid (specifically, the `coordinates` format was incorrect - must be a list of two numbers like `[longitude, latitude]`). Please try rephrasing your request or regenerating the plan."
                             message_placeholder.warning(response_content)
                             st.session_state.quick_mode_chat_messages.append({"role": "assistant", "content": response_content})
-                            # Optionally log the invalid JSON for debugging:
-                            # print("--- Invalid JSON Structure Received ---")
-                            # print(new_itinerary_json_str)
-                            # print("--- End Invalid JSON ---")
-
-                    except json.JSONDecodeError as e:
-                        # Failed to parse the JSON string from AI
-                        response_content = f"⚠️ Sorry, I received an invalid response from the AI and couldn't update the plan. The AI likely provided text explanation instead of JSON. Response received:\n```\n{new_itinerary_json_str}\n```"
-                        message_placeholder.error(response_content) # Use error display
+                            # Optionally log the invalid structure (already printed parsed data)
+                    else:
+                        # JSON received but invalid overall structure
+                        response_content = "⚠️ Sorry, the AI provided an updated plan but its overall structure was invalid (missing required fields like 'day', 'stops', 'name', or 'coordinates'). Please try rephrasing your request or regenerating the plan."
+                        message_placeholder.warning(response_content)
                         st.session_state.quick_mode_chat_messages.append({"role": "assistant", "content": response_content})
-                        # Optionally log the bad response:
-                        # print("--- Non-JSON/Invalid JSON Response Received ---")
+                        # Optionally log the invalid JSON for debugging:
+                        # print("--- Invalid JSON Structure Received ---")
                         # print(new_itinerary_json_str)
-                        # print("--- End Non-JSON/Invalid JSON Response ---")
-                else:
-                     # Should not happen if modify func returns one or the other, but handle defensively
-                     response_content = "🤔 Something unexpected happened. I didn't receive an update or an error message from the modification agent."
-                     message_placeholder.warning(response_content)
-                     st.session_state.quick_mode_chat_messages.append({"role": "assistant", "content": response_content})
-        # --- <<< END NEW Chat Interface >>> ---
-    else:
-        # This case handles if itinerary_data was found to be invalid before the map attempt
-        # Or if the map itself had an error but we still want to *try* showing chat
-        # (Currently, the invalid data case above prevents chat, which might be desired)
-        # If you wanted chat even with bad map data, you'd add the chat code here too.
-        st.info("Cannot display modification chat as itinerary data is missing or invalid.")
+                        # print("--- End Invalid JSON ---")
+
+                except json.JSONDecodeError as e:
+                    # Failed to parse the JSON string from AI
+                    response_content = f"⚠️ Sorry, I received an invalid response from the AI and couldn't update the plan. The AI likely provided text explanation instead of JSON. Response received:\n```\n{new_itinerary_json_str}\n```"
+                    message_placeholder.error(response_content) # Use error display
+                    st.session_state.quick_mode_chat_messages.append({"role": "assistant", "content": response_content})
+                    # Optionally log the bad response:
+                    # print("--- Non-JSON/Invalid JSON Response Received ---")
+                    # print(new_itinerary_json_str)
+                    # print("--- End Non-JSON/Invalid JSON Response ---")
+            else:
+                 # Should not happen if modify func returns one or the other, but handle defensively
+                 response_content = "🤔 Something unexpected happened. I didn't receive an update or an error message from the modification agent."
+                 message_placeholder.warning(response_content)
+                 st.session_state.quick_mode_chat_messages.append({"role": "assistant", "content": response_content})
+    # --- <<< END Chat Interface >>> ---
+else:
+    # This case handles if itinerary_data was found to be invalid before the map attempt
+    # Or if the map itself had an error but we still want to *try* showing chat
+    # (Currently, the invalid data case above prevents chat, which might be desired)
+    # If you wanted chat even with bad map data, you'd add the chat code here too.
+    st.info("Cannot display modification chat as itinerary data is missing or invalid.")
 
 
-# --- 8. Default Message ---
-# Shown only if not generating, no error is displayed, and no itinerary data exists
-elif not st.session_state.quick_mode_generating and not st.session_state.quick_mode_error and not st.session_state.quick_mode_itinerary_data:
-     st.info("Enter your trip details above and click 'Generate Quick Plan' to get started.")
