@@ -29,18 +29,20 @@ This is a Streamlit web application designed to help users plan travel itinerari
 *   **Chat-based Modification:** Use a chat interface to request changes to the generated itinerary (e.g., "Swap Day 1 and Day 2", "Add a coffee break", "Remove the park visit"). The AI will attempt to update the plan and refresh the map.
 
 ## 📁 Project Structure.
-├── .env # Stores API keys (!! IMPORTANT: Add to .gitignore !!)
-├── .gitignore # Specifies intentionally untracked files that Git should ignore
-├── requirements.txt # Python dependencies
-└── src
-├── pages # Contains individual Streamlit pages (multi-page app)
-│ ├── 1_Detailed_Planner.py
-│ ├── 2_Quick_Mode_Planner.py
-│ └── init.py
-├── init.py
-├── Main_page.py # The main entry point / landing page for Streamlit
-├── itinerary_agent.py # Contains functions calling Gemini for brainstorming/planning
-└── tools.py # Utility functions (geocoding, routing - future, POI - future)
+```text
+.
+├── .env                # Stores API keys (!! IMPORTANT: Add to .gitignore !!)
+├── .gitignore          # Specifies intentionally untracked files
+├── requirements.txt    # Python dependencies
+└── src/                # Source code for the application
+    ├── pages/          # Contains individual Streamlit pages (multi-page app)
+    │   ├── 1_Detailed_Planner.py
+    │   ├── 2_Quick_Mode_Planner.py
+    │   └── __init__.py
+    ├── __init__.py
+    ├── Main_page.py        # Main entry point / landing page for Streamlit
+    ├── itinerary_agent.py  # Functions calling Gemini for planning
+    └── tools.py            # Utility functions (geocoding, etc.)
 
 ## 🚀 Setup and Installation
 
