@@ -213,7 +213,7 @@ Start suggesting based on the user's next message. Adhere strictly to the reques
 
 # --- Chat Input ---
 st.caption("Chat with Gemini to brainstorm activities:")
-user_prompt = st.chat_input("Ask for suggestions (e.g., 'suggest some historical sites')")
+user_prompt = st.chat_input("Add your suggestions here (e.g., 'suggest some historical sites')")
 
 if user_prompt:
     st.session_state.messages.append({"role": "user", "content": user_prompt})
