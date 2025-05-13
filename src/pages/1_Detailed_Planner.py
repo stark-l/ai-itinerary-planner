@@ -10,6 +10,7 @@ from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut, GeocoderServiceError
 import json
 from tools import geocode_location, cached_geocode_location
+from tools import geocode_in_city
 
 # REMOVE basic itinerary import, KEEP detailed one
 # from itinerary_agent import create_basic_itinerary, generate_detailed_itinerary_gemini
@@ -416,7 +417,8 @@ else:
                      status_text = f"Geocoding ({i+1}/{total_items}): {place_name_to_geocode[:30]}..."
                      if progress_bar: progress_bar.progress(i / total_items, text=status_text)
 
-                     geo_result = cached_geocode_location(place_name_to_geocode) # Use cached tool
+                     geo_result = geocode_in_city(place_name_to_geocode,
+                             st.session_state.location) # Use cached tool
                      if geo_result:
                          result_to_store = {
                              "place_name": place_name_to_geocode, # Store the name actually used

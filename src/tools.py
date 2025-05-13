@@ -4,6 +4,7 @@ import streamlit as st # For caching and potential future use
 import requests
 import json
 import time
+import os  
 from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut, GeocoderServiceError
 
@@ -30,31 +31,51 @@ def geocode_location(place_name: str, attempt=1, max_attempts=3) -> dict | None:
         A dictionary {'latitude': float, 'longitude': float, 'address': str} if successful,
         None otherwise.
     """
-    # print(f"[Tool Log] Geocoding: '{place_name}' (Attempt {attempt})") # Optional logging
-    try:
-        geolocator = Nominatim(user_agent=GEOCODER_USER_AGENT)
-        location = geolocator.geocode(place_name, timeout=10)
-        if location:
-            return {
-                "latitude": location.latitude,
-                "longitude": location.longitude,
-                "address": location.address
-            }
-        else:
-            # print(f"[Tool Log] Geocoding: Place '{place_name}' not found.")
-            return None
-    except GeocoderTimedOut:
-        # print(f"[Tool Log] Geocoding timed out for: '{place_name}'. Retrying...")
-        if attempt < max_attempts:
-            time.sleep(1) # Wait before retry
-            return geocode_location(place_name, attempt + 1, max_attempts)
-        else:
-            # print(f"[Tool Log] Geocoding failed for '{place_name}' after {max_attempts} attempts (Timeout).")
-            return None
-    except (GeocoderServiceError, Exception) as e:
-        # print(f"[Tool Log] Geocoding error for '{place_name}': {e}")
-        return None
+ # --- Mapbox first -------------------------------------------------
+    token = os.getenv("MAPBOX_ACCESS_TOKEN")          # picked up after load_dotenv()
+    if token:
+        url = (
+            f"https://api.mapbox.com/geocoding/v5/mapbox.places/"
+            f"{requests.utils.quote(place_name)}.json"
+            "&types=poi"               # ★ only POIs, not neighbourhoods/cities
+            "&autocomplete=false"      # prefer exact match
+            f"&access_token={token}"
+            
+        )
+        try:
+            r = requests.get(url, timeout=5)
+            r.raise_for_status()
+            feats = r.json().get("features")
+            if feats:
+                lon, lat = feats[0]["center"]
+                return {
+                    "latitude": lat,
+                    "longitude": lon,
+                    "address": feats[0]["place_name"],
+                }
+        except requests.RequestException:
+            pass                              # fall through to Nominatim
 
+    # --- Fallback to Nominatim ---------------------------------------
+    try:
+        geolocator = Nominatim(
+            user_agent=GEOCODER_USER_AGENT,
+            timeout=10,
+            scheme="https",
+        )
+        loc = geolocator.geocode(place_name)
+        if loc:
+            return {
+                "latitude": loc.latitude,
+                "longitude": loc.longitude,
+                "address": loc.address,
+            }
+    except (GeocoderTimedOut, GeocoderServiceError):
+        if attempt < max_attempts:
+            time.sleep(1)
+            return geocode_location(place_name, attempt + 1, max_attempts)
+
+    return None
 # Tool 2: Routing
 def get_route(start_coords: tuple[float, float], end_coords: tuple[float, float]) -> dict | None:
     """
@@ -235,3 +256,17 @@ def cached_geocode_location(place_name: str, attempt=1, max_attempts=3) -> dict 
     # print(f"DEBUG: Calling CACHED geocode_location tool for: {place_name}")
     # Make sure GEOCODER_USER_AGENT is defined or passed if needed here
     return geocode_location(place_name, attempt, max_attempts)
+
+# --- Context-aware wrapper -------------------------------------------
+def geocode_in_city(place_name: str, city: str) -> dict | None:
+    """
+    First try “<place>, <city>” so the geocoder is biased to that city.
+    Fallback to the bare place name if that fails.
+    """
+    if city:
+        # e.g. "Englischer Garten, Munich"
+        hit = cached_geocode_location(f"{place_name}, {city}")
+        if hit:                                          # got a match in Munich
+            return hit
+    # last resort – original behaviour
+    return cached_geocode_location(place_name)

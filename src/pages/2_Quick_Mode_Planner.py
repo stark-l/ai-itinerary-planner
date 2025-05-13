@@ -15,7 +15,7 @@ load_dotenv() # Load environment variables (.env file at the project root)
 # Import shared tools and agents
 # Assumes running with `streamlit run src/Main_page.py` from project root
 try:
-    from tools import cached_geocode_location # Use the cached version from tools.py
+    from tools import geocode_in_city # Use the cached version from tools.py
     from itinerary_agent import brainstorm_places_for_quick_mode, generate_detailed_itinerary_gemini, modify_detailed_itinerary_gemini
 except ImportError as e:
     st.error(f"Error importing custom modules: {e}. Make sure you are running streamlit from the project root directory and the 'src' folder is correctly structured.")
@@ -139,7 +139,7 @@ if st.session_state.quick_mode_generating:
             progress_bar.progress(geocode_progress, text=geocode_progress_text)
             status_text_placeholder.info(geocode_progress_text) # Keep user updated
 
-            geo_result = cached_geocode_location(place_name) # Use cached tool from tools.py
+            geo_result = geocode_in_city(place_name, location) # Use cached tool from tools.py
             if geo_result:
                 geocoded_places_list.append({
                     "place_name": place_name, # Use the name Gemini suggested
