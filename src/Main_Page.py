@@ -8,7 +8,7 @@ st.set_page_config(
     page_icon="✈️"
 )
 
-st.title("✈️ Welcome to the WayLi!")
+st.title("✈️ Welcome to WayLi!")
 
 st.markdown(
     """
